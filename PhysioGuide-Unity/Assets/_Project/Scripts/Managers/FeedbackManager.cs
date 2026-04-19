@@ -2,28 +2,55 @@ using UnityEngine;
 
 public class FeedbackManager : MonoBehaviour
 {
-    // We will drag the UserAvatar's body/mesh renderer here 
+    [Header("Visuals")]
     public Renderer avatarRenderer;
-    // Create these two materials in Unity and drag them here 
-    public Material correctMaterial;
-    public Material errorMaterial;
-    void Update()
+    public Material correctMat; // Green
+    public Material errorMat;   // Red
+
+    // This method is now called by UserPoseUpdater
+    public void UpdateVisuals(PoseData pose)
     {
-        if (avatarRenderer == null) return;
-        string liveJson = ZMQClient.incomingPoseData;
-        if (string.IsNullOrEmpty(liveJson)) return;
-        try
+        // Safety Check
+        if (pose.error_flags == null) return;
+
+        // --- 1. DETECT ERRORS (Using Correct Python Keys) ---
+        bool hasError = false;
+        string feedbackMsg = "Good Form";
+
+        // Logic handles both exercises based on what flags are active
+        if (pose.error_flags.hiking)
         {
-            PoseData pose = JsonUtility.FromJson<PoseData>(liveJson);
-            // This is where we use Fatima's rules! 
-            // Check if ANY error flag from Hussain's data is true. 
-            if (pose.error_hiking_l | pose.error_neck_flexion) { avatarRenderer.material = errorMaterial; }
-            else
-            {
-                avatarRenderer.material = correctMaterial;
-            }
+            hasError = true;
+            feedbackMsg = "Relax Shoulders";
         }
-        catch
-        { /* Ignore errors, UserPoseUpdater will log them */ }
+        else if (pose.error_flags.bent_elbow)
+        {
+            hasError = true;
+            feedbackMsg = "Straighten Arms";
+        }
+        else if (pose.error_flags.flexion) // Chin Tuck specific
+        {
+            hasError = true;
+            feedbackMsg = "Chin Too High";
+        }
+        else if (pose.error_flags.extension) // Chin Tuck specific
+        {
+            hasError = true;
+            feedbackMsg = "Chin Too Low";
+        }
+
+        // --- 2. UPDATE AVATAR COLOR ---
+        if (avatarRenderer != null)
+        {
+            avatarRenderer.material = hasError ? errorMat : correctMat;
+        }
+
+        // --- 3. UPDATE UI (HUD) ---
+        // Ensure UIManager has this method exposed
+        if (UIManager.Instance != null)
+        {
+            // We pass the Message, the Error State (for text color), and Reps
+            UIManager.Instance.UpdateLiveFeedback(feedbackMsg, hasError, pose.rep_count);
+        }
     }
 }

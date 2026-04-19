@@ -1,2 +1,14 @@
 fileFormatVersion: 2
 guid: 23a6002a005c99e489e3a7a42ed18094
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - scaptionFile: {fileID: 4900000, guid: 375c42b506135284bafa15eed59ceace, type: 3}
+  - chinTuckFile: {fileID: 4900000, guid: 48ecba137c9d31a4491b1155457e146d, type: 3}
+  - avatarController: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

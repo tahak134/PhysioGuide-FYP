@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "advanced-unity-mcp": {
+      "command": "npx",
+      "args": ["-y", "advanced-unity-mcp"]
+    }
+  }
+}

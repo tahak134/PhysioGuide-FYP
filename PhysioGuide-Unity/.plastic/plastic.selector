@@ -1,4 +1,3 @@
 repository "PhysioGuide-Unity/PhysioGuide-Unity@18968341784154@cloud"
   path "/"
-    br "/main"
-    co "/main"
+    smartbranch "/main/feature-upgrade-to-68f1"

@@ -1,95 +1,111 @@
-using UnityEngine;
+using System;
+using System.Threading;
 using NetMQ;
 using NetMQ.Sockets;
-using System.Threading;
-using System;
-using System.Collections.Concurrent;
-using System.Diagnostics;
+using UnityEngine;
 
-/// <summary>
-/// Manages the network connection to the Python OpenPose Server.
-/// Runs the socket connection on a separate thread to prevent freezing the Unity UI.
-/// </summary>
 public class ZMQClient : MonoBehaviour
 {
-    // Thread-safe storage for the latest incoming data
-    public static volatile string incomingPoseData = "";
+    public static ZMQClient Instance { get; private set; }
 
-    // Configuration
-    // If Single Machine: use "tcp://localhost:5555"
-    // If Dual Machine: use "tcp://192.168.X.X:5555" (Server's IP)
+    [Header("Status")]
+    public bool IsConnected = false;
 
-    public string serverAddress = "tcp://localhost:5555";
+    [Header("Settings")]
+    public string targetIP = "10.200.248.104";
+    public bool logConnectionStatus = true;
 
-    private Thread _clientThread;
-    private bool _isRunning = false;
-    private RequestSocket _clientSocket;
+    // Thread-safe pose data access
+    private readonly object _poseLock = new object();
+    private string _latestPoseJson = "";
 
-    void Start()
+    public string LatestPoseJson
     {
-        _isRunning = true;
-        _clientThread = new Thread(NetworkLoop);
-        _clientThread.IsBackground = true; // Ensures thread dies if app closes
-        _clientThread.Start();
+        get { lock (_poseLock) { return _latestPoseJson; } }
+        set { lock (_poseLock) { _latestPoseJson = value; } }
     }
 
-    private void NetworkLoop()
+    private Thread _clientThread;
+    private volatile bool _isRunning = false;
+    private volatile bool _restartNeeded = false;
+
+    void Awake()
     {
-        // NetMQ cleanup requirement
-        AsyncIO.ForceDotNet.Force();
-
-        try
-        {
-            using (_clientSocket = new RequestSocket())
-            {
-                _clientSocket.Connect(serverAddress);
-                UnityEngine.Debug.Log($"[ZMQ] Connected to {serverAddress}");
-
-                while (_isRunning)
-                {
-                    try
-                    {
-                        // 1. Send Request (Handshake)
-                        _clientSocket.SendFrame("get_pose");
-
-                        // 2. Receive Reply (with Timeout)
-                        // We use a timeout so Unity doesn't hang if Python crashes
-                        string message = null;
-                        bool gotMessage = _clientSocket.TryReceiveFrameString(TimeSpan.FromMilliseconds(500), out message);
-
-                        if (gotMessage && !string.IsNullOrEmpty(message))
-                        {
-                            incomingPoseData = message;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log only occasionally to avoid flooding console
-                        UnityEngine.Debug.LogError($"[ZMQ Error] {ex.Message}");
-                    }
-
-                    // Throttle the network loop. 
-                    // 33ms roughly equals 30 requests per second.
-                    Thread.Sleep(33);
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            UnityEngine.Debug.LogError($"[ZMQ Critical Failure] {e.Message}");
-        }
-        finally
-        {
-            NetMQConfig.Cleanup();
-        }
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
     }
 
     void OnDestroy()
     {
         _isRunning = false;
-        if (_clientThread != null)
+        if (_clientThread != null) _clientThread.Join(500);
+    }
+
+    // --- UI INTERFACE ---
+    // This function allows your UIManager to change the IP and restart the thread
+    public void ConnectToIP(string ipAddress)
+    {
+        targetIP = ipAddress;
+        _restartNeeded = true;
+    }
+
+    void Start()
+    {
+        // Load saved IP if available, otherwise keep the Inspector default
+        string savedIP = PlayerPrefs.GetString("TargetIP", "");
+        if (!string.IsNullOrEmpty(savedIP))
         {
-            _clientThread.Join(500); // Wait 500ms for thread to shut down
+            targetIP = savedIP;
         }
+
+        _isRunning = true;
+        _clientThread = new Thread(NetMQWorker);
+        _clientThread.IsBackground = true;
+        _clientThread.Start();
+    }
+
+    private void NetMQWorker()
+    {
+        AsyncIO.ForceDotNet.Force();
+
+        while (_isRunning)
+        {
+            _restartNeeded = false;
+
+            try
+            {
+                using (var subSocket = new SubscriberSocket())
+                {
+                    subSocket.Options.ReceiveHighWatermark = 1000;
+                    subSocket.Connect($"tcp://{targetIP}:5555");
+                    subSocket.SubscribeToAnyTopic();
+
+                    IsConnected = true;
+                    if (logConnectionStatus) UnityEngine.Debug.Log($"[ZMQ] Connected to {targetIP}");
+
+                    while (_isRunning && !_restartNeeded)
+                    {
+                        string message = null;
+                        // Wait up to 100ms for a message, then loop
+                        if (subSocket.TryReceiveFrameString(TimeSpan.FromMilliseconds(100), out message))
+                        {
+                            LatestPoseJson = message;
+                        }
+                    }
+
+                    subSocket.Disconnect($"tcp://{targetIP}:5555");
+                    IsConnected = false;
+                }
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError($"[ZMQ ERROR] Thread Crashed: {e.Message}");
+                IsConnected = false;
+                Thread.Sleep(1000); // Wait 1s before retrying
+            }
+
+        }
+
+        NetMQConfig.Cleanup();
     }
 }

@@ -1,31 +1,40 @@
-using System.Diagnostics;
 using UnityEngine;
 
 public class UserPoseUpdater : MonoBehaviour
 {
-    // We will drag the UserAvatar's AvatarController script here 
-    public AvatarController avatarController;
+    [Header("Subsystems")]
+    public AvatarController userController;
+    public FeedbackManager feedbackManager;
 
     void Update()
     {
-        if (avatarController == null) return;
-
-        // Get the LIVE data string from the ZMQ script 
-        string liveJson = ZMQClient.incomingPoseData;
-
-        if (string.IsNullOrEmpty(liveJson)) return;
+        // 1. Safety Checks
+        if (ZMQClient.Instance == null) return;
+        string json = ZMQClient.Instance.LatestPoseJson;
+        if (string.IsNullOrEmpty(json)) return;
 
         try
         {
-            // Convert the LIVE JSON string into our PoseData object 
-            PoseData pose = JsonUtility.FromJson<PoseData>(liveJson);
+            // 2. Parse Once
+            PoseData livePose = JsonUtility.FromJson<PoseData>(json);
 
-            // Send the LIVE pose data to the user's puppeteer 
-            avatarController.UpdatePose(pose);
+            // 3. Debug (Optional, remove for production)
+            if (livePose != null)
+            {
+
+                // Drive Animation
+                if (userController != null) userController.UpdatePose(livePose);
+                if (feedbackManager != null) feedbackManager.UpdateVisuals(livePose);
+
+                // Log frame for session history
+                if (SessionLogger.Instance != null) SessionLogger.Instance.LogFrame(livePose);
+            }
         }
         catch (System.Exception e)
         {
-            UnityEngine.Debug.LogWarning("Error parsing JSON: " + e.Message);
+            // JsonUtility is sensitive; catch generic errors to prevent crash
+
+            Debug.LogWarning("Error parsing JSON: " + e.Message);
         }
     }
 }

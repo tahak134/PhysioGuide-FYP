@@ -2,34 +2,84 @@ using UnityEngine;
 
 public class CalibrationManager : MonoBehaviour
 {
-    public float ScaleFactor = 1.0f; // Default
+    public float ScaleFactor = 1.0f;
     public Vector3 RootOffset = Vector3.zero;
+    public bool IsCalibrated { get; private set; } = false;
 
-    // Call this when user is in T-Pose
-    public void Calibrate(PoseData currentData)
+    [Header("Calibration Settings")]
+    [Tooltip("Minimum wrist distance in MediaPipe units to accept a T-pose")]
+    public float minWristDistance = 0.3f;
+
+    /// <summary>
+    /// Attempts calibration from a live PoseData frame.
+    /// Returns true if calibration succeeded (user was in valid T-pose).
+    /// </summary>
+    public bool TryCalibrate(PoseData currentData)
     {
-        // 1. Get Wrist positions from JSON data
-        Vector3 leftWrist = new Vector3(currentData.left_wrist.x, currentData.left_wrist.y, 0);
-        Vector3 rightWrist = new Vector3(currentData.right_wrist.x, currentData.right_wrist.y, 0);
+        if (currentData == null || currentData.raw_landmarks == null || currentData.raw_landmarks.Count <= 16)
+            return false;
 
-        // 2. Calculate Normalized Distance
+        Landmark lWrist = currentData.raw_landmarks[15];
+        Landmark rWrist = currentData.raw_landmarks[16];
+
+        Vector3 leftWrist = new Vector3(lWrist.x, lWrist.y, 0);
+        Vector3 rightWrist = new Vector3(rWrist.x, rWrist.y, 0);
+
         float distMP = Vector3.Distance(leftWrist, rightWrist);
 
-        // 3. Assume Average Human Span (1.6 meters)
-        float distReal = 1.6f;
+        // Reject if wrists are too close (not a valid T-pose)
+        if (distMP < minWristDistance)
+            return false;
 
-        // 4. Set Scale Factor
+        // Check if arms are roughly horizontal (wrist Y values should be similar)
+        float yDiff = Mathf.Abs(lWrist.y - rWrist.y);
+        if (yDiff > 0.15f) // Too much vertical difference — not a T-pose
+            return false;
+
+        float distReal = 1.6f; // Average human arm span
         ScaleFactor = distReal / distMP;
-
-        UnityEngine.Debug.Log($"Calibrated! Scale Factor: {ScaleFactor}");
+        IsCalibrated = true;
+        Debug.Log($"[Calibration] Success! Scale Factor: {ScaleFactor:F3}");
+        return true;
     }
 
-    // Helper function for other scripts to use
-    public Vector3 GetWorldPosition(Vector3 mediaPipePos)
+    /// <summary>
+    /// Original calibration method (for direct calls).
+    /// </summary>
+    public void Calibrate(PoseData currentData)
+    {
+        if (currentData.raw_landmarks == null || currentData.raw_landmarks.Count <= 16) return;
+
+        Landmark lWrist = currentData.raw_landmarks[15];
+        Landmark rWrist = currentData.raw_landmarks[16];
+
+        Vector3 leftWrist = new Vector3(lWrist.x, lWrist.y, 0);
+        Vector3 rightWrist = new Vector3(rWrist.x, rWrist.y, 0);
+
+        float distMP = Vector3.Distance(leftWrist, rightWrist);
+
+        float distReal = 1.6f;
+        if (distMP > 0.1f)
+        {
+            ScaleFactor = distReal / distMP;
+            IsCalibrated = true;
+            Debug.Log($"[Calibration] Calibrated! Scale Factor: {ScaleFactor}");
+        }
+    }
+
+    public void ResetCalibration()
+    {
+        ScaleFactor = 1.0f;
+        RootOffset = Vector3.zero;
+        IsCalibrated = false;
+    }
+
+    public Vector3 GetWorldPosition(Landmark mediaPipePos)
     {
         float x = (mediaPipePos.x - 0.5f) * ScaleFactor;
-        float y = (1.0f - mediaPipePos.y) * ScaleFactor; // Invert Y
+        float y = (1.0f - mediaPipePos.y) * ScaleFactor;
         float z = mediaPipePos.z * ScaleFactor;
+
         return new Vector3(x, y, z) + RootOffset;
     }
 }
