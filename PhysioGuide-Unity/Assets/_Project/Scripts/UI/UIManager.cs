@@ -105,7 +105,18 @@ public class UIManager : MonoBehaviour
     /// </summary>
     public void ShowSessionSummary(SessionSummary summary)
     {
-        if (summary == null) return;
+        Debug.Log($"[UIManager] ShowSessionSummary called. summary={(summary == null ? "NULL" : "valid")}");
+        
+        if (summary == null)
+        {
+            Debug.LogError("[UIManager] SessionSummary is NULL! Check GymManager or SessionLogger.");
+            if (SummaryDetailsText != null)
+                SummaryDetailsText.text = "Error: No session data available.";
+            return;
+        }
+
+        Debug.Log($"[UIManager] Populating summary - Patient: {summary.patient_name}, Exercise: {summary.exercise}, " +
+                  $"Reps: {summary.total_reps}, Accuracy: {summary.accuracy:F1}%, Frames: {summary.total_frames}");
 
         if (SummaryTitleText != null)
         {
@@ -124,6 +135,10 @@ public class UIManager : MonoBehaviour
                 $"<b>Repetitions:</b> {summary.total_reps}\n" +
                 $"<b>Accuracy:</b> {summary.accuracy:F1}%\n" +
                 $"<b>Frames Recorded:</b> {summary.total_frames}";
+        }
+        else
+        {
+            Debug.LogError("[UIManager] SummaryDetailsText is NOT assigned in Inspector!");
         }
 
         if (SummaryErrorsText != null)

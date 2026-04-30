@@ -79,6 +79,11 @@ public class GameManager : MonoBehaviour
                 RepetitionCount = 0;
                 break;
             case GameState.Training:
+                if (Time.timeScale <= 0f)
+                {
+                    Debug.LogWarning($"[GameManager] Time.timeScale was {Time.timeScale}, resetting to 1 for training session.");
+                }
+                Time.timeScale = 1f;
                 OnSessionStart?.Invoke();
                 break;
         }

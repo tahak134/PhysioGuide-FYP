@@ -18,4 +18,5 @@ public class SessionSummary
     public float accuracy;          // 0-100%
     public List<string> error_flags_detected;
     public string recording_filename;
+    public string recording_url;     // Firebase Storage download URL for the full recording
 }

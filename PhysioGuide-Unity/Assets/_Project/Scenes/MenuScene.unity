@@ -1361,16 +1361,17 @@ MonoBehaviour:
   loginPanel: {fileID: 0}
   mainMenuPanel: {fileID: 0}
   exerciseSelectionPanel: {fileID: 0}
-  historyPanel: {fileID: 0}
-  settingsPanel: {fileID: 0}
+  historyPanel: {fileID: 348444727}
+  settingsPanel: {fileID: 655302442}
   usernameInput: {fileID: 0}
   welcomeText: {fileID: 0}
   loginErrorText: {fileID: 0}
   loginButtonObj: {fileID: 0}
   loginButtonLabel: {fileID: 0}
-  historyContentText: {fileID: 0}
+  historyContentText: {fileID: 1956528671}
   scaptionDurationInput: {fileID: 0}
   shoulderFlexionDurationInput: {fileID: 0}
+  ipAddressInput: {fileID: 1204679343}
 --- !u!4 &259390743
 Transform:
   m_ObjectHideFlags: 0
@@ -2576,7 +2577,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 556987814}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 259390742}
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
+        m_MethodName: OnSaveSettingsClicked
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &556987814
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6739,7 +6752,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -7597,6 +7610,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   apiKey: AIzaSyBX1KT-n6F3qWz1tWz33j-k4to8ns4-TCY
   projectId: physioguide-dashboard
+  defaultTherapistId: NJM6f56z25S7Vx5gZ9GF6rGfxzs1
 --- !u!4 &1807630436
 Transform:
   m_ObjectHideFlags: 0
@@ -8263,6 +8277,7 @@ GameObject:
   - component: {fileID: 1956528673}
   - component: {fileID: 1956528671}
   - component: {fileID: 1956528672}
+  - component: {fileID: 1956528675}
   m_Layer: 0
   m_Name: HistoryText
   m_TagString: Untagged
@@ -8409,6 +8424,20 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: -20, y: 0}
   m_Pivot: {x: 0.5, y: 1}
+--- !u!114 &1956528675
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1956528670}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3245ec927659c4140ac4f8d17403cc18, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_HorizontalFit: 0
+  m_VerticalFit: 2
 --- !u!1 &1962159130
 GameObject:
   m_ObjectHideFlags: 0
@@ -8919,6 +8948,7 @@ MonoBehaviour:
   historyContentText: {fileID: 1956528671}
   scaptionDurationInput: {fileID: 0}
   shoulderFlexionDurationInput: {fileID: 0}
+  ipAddressInput: {fileID: 0}
 --- !u!114 &2071639306
 MonoBehaviour:
   m_ObjectHideFlags: 0

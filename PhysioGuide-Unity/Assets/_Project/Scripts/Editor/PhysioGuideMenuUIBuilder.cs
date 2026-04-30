@@ -225,11 +225,11 @@ public class PhysioGuideMenuUIBuilder : EditorWindow
         TMP_InputField ipInput = CreateInputField("IP_Input", settingsPanel.transform,
             new Vector2(140, 170), new Vector2(350, 50), "e.g., 10.200.248.104");
         // Load current saved IP
-        ipInput.text = PlayerPrefs.GetString("TargetIP", "10.200.248.104");
+        ipInput.text = PlayerPrefs.GetString("TargetIP", "10.200.248.104"); mgr.ipAddressInput = ipInput;
 
         Button saveSettingsBtn = CreateButton("SaveSettings_Button", settingsPanel.transform,
             new Vector2(0, 80), new Vector2(350, 60), "Save Settings", 28, COL_BTN_PRIMARY);
-        // We'll wire a simple save via lambda captured at build time — user can refine later
+        // We'll wire a simple save via lambda captured at build time â€” user can refine later
         // For now, settings save is manual via the button
 
         CreateText("SettingsInfo", settingsPanel.transform,
@@ -547,6 +547,11 @@ public class PhysioGuideMenuUIBuilder : EditorWindow
         LayoutElement le = txtGO.AddComponent<LayoutElement>();
         le.preferredWidth = size.x - 40;
 
+        // CRITICAL: Auto-size the text's own height so the Content's ContentSizeFitter
+        // can calculate the correct scrollable height. Without this, the text is 0 height.
+        ContentSizeFitter textFitter = txtGO.AddComponent<ContentSizeFitter>();
+        textFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
         return scrollGO;
     }
 
@@ -571,4 +576,5 @@ public class PhysioGuideMenuUIBuilder : EditorWindow
     }
 }
 #endif
+
 

@@ -14,6 +14,9 @@ public class SessionLogger : MonoBehaviour
     private int _totalFrameCount = 0;
     private HashSet<string> _detectedErrors = new HashSet<string>();
 
+    private float _sessionStartTime = 0f;
+    private float _sessionDuration = 0f;
+
     void Awake()
     {
         if (Instance != null && Instance != this)
@@ -53,19 +56,27 @@ public class SessionLogger : MonoBehaviour
         _totalFrameCount = 0;
         _detectedErrors.Clear();
         _isLogging = true;
-        Debug.Log("[SessionLogger] Started.");
+        _sessionStartTime = Time.time;
+        _sessionDuration = 0f;
+        Debug.Log("[SessionLogger] Started. Listening for frames...");
     }
 
     public void StopLogging()
     {
         if (!_isLogging) return;
+        _sessionDuration = Time.time - _sessionStartTime;
         _isLogging = false;
         SaveSession();
     }
 
     public void LogFrame(PoseData data)
     {
-        if (!_isLogging || data == null) return;
+        if (!_isLogging)
+        {
+            if (data != null) Debug.LogWarning("[SessionLogger] LogFrame called but NOT logging! State may be wrong.");
+            return;
+        }
+        if (data == null) return;
 
         // Stamp patient ID onto each frame
         string patientId = PlayerPrefs.GetString("PatientID", "anonymous");
@@ -76,6 +87,12 @@ public class SessionLogger : MonoBehaviour
 
         _sessionData.Add(data);
         _totalFrameCount++;
+
+        // Log every 100 frames to confirm frames are being received
+        if (_totalFrameCount % 100 == 0)
+        {
+            Debug.Log($"[SessionLogger] Frame {_totalFrameCount} logged. Rep: {data.rep_count}, State: {data.state}");
+        }
 
         // Track errors for accuracy calculation
         if (data.error_flags != null)
@@ -112,6 +129,12 @@ public class SessionLogger : MonoBehaviour
     /// Used by UIManager to populate the Summary screen.
     /// </summary>
     public SessionSummary LastSessionSummary { get; private set; }
+    
+    /// <summary>
+    /// Debug access to frame count before session ends.
+    /// </summary>
+    public int DebugFrameCount => _totalFrameCount;
+    public bool DebugIsLogging => _isLogging;
 
         private void SaveSession()
     {
@@ -151,13 +174,16 @@ public class SessionLogger : MonoBehaviour
             patient_name = patientName,
             exercise = exercise,
             timestamp = System.DateTime.Now.ToString("o"),
-            duration_sec = GameManager.Instance != null ? GameManager.Instance.SessionDuration : 0f,
+            duration_sec = _sessionDuration,
             total_reps = maxReps,
             total_frames = _totalFrameCount,
             accuracy = accuracy,
             error_flags_detected = new List<string>(_detectedErrors),
             recording_filename = recordingFilename
         };
+
+        Debug.Log($"[SessionLogger] SaveSession complete: Patient={patientName}, Exercise={exercise}, " +
+                  $"Frames={_totalFrameCount}, Reps={maxReps}, Accuracy={accuracy:F1}%, Errors={_detectedErrors.Count}");
 
         string summaryFilename = "Summary_" + exercise + "_" + dateStamp + ".json";
         string summaryPath = Path.Combine(folderPath, summaryFilename);
@@ -167,7 +193,7 @@ public class SessionLogger : MonoBehaviour
 
         if (FirebaseManager.Instance != null)
         {
-            FirebaseManager.Instance.UploadSessionData(LastSessionSummary, json);
+            FirebaseManager.Instance.UploadSessionData(LastSessionSummary, json, fullPath);
         }
     }
 }

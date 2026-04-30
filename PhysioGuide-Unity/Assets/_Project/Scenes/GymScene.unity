@@ -3624,6 +3624,8 @@ GameObject:
   m_Component:
   - component: {fileID: 596262846}
   - component: {fileID: 596262845}
+  - component: {fileID: 596262847}
+  - component: {fileID: 596262848}
   m_Layer: 0
   m_Name: _GymLogic
   m_TagString: Untagged
@@ -3668,6 +3670,45 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &596262847
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 596262844}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 765b78e965b5f7642bc8458e6dc3599a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &596262848
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 596262844}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 76aae71135b7a1a42be25a096899223e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  SetupPanel: {fileID: 1939291685}
+  CalibrationPanel: {fileID: 0}
+  TrainingPanel: {fileID: 0}
+  HUDPanel: {fileID: 577485659}
+  SummaryPanel: {fileID: 1099787185}
+  trainer: {fileID: 899898604}
+  FeedbackText: {fileID: 0}
+  TimerText: {fileID: 0}
+  RepCounterText: {fileID: 0}
+  AccuracySlider: {fileID: 0}
+  SummaryTitleText: {fileID: 1098844842}
+  SummaryDetailsText: {fileID: 1430844980}
+  SummaryErrorsText: {fileID: 1542157103}
+  TherapistLogText: {fileID: 0}
+  LiveMetricsText: {fileID: 0}
 --- !u!1 &639715226
 GameObject:
   m_ObjectHideFlags: 0

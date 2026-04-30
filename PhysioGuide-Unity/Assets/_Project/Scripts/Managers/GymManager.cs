@@ -90,6 +90,15 @@ public class GymManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.SetState(GameState.Setup);
 
+        // 🔥 Tell Python backend to boot up ML model and camera immediately
+        // so we start getting frames during the calibration phase!
+        if (ZMQClient.Instance != null)
+        {
+            string exerciseToStart = string.IsNullOrEmpty(overrideExercise) ? PlayerPrefs.GetString("SelectedExercise", "scaption") : overrideExercise;
+            string cmd = "{\"command\": \"START\", \"exercise\": \"" + exerciseToStart + "\"}";
+            ZMQClient.Instance.SendCommand(cmd);
+        }
+
         if (countdownText) countdownText.text = "Get Ready...";
         yield return new WaitForSeconds(2f);
 
@@ -103,6 +112,10 @@ public class GymManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.SetState(GameState.Training);
             
+        // Explicitly start logging to support testing GymScene in isolation
+        if (SessionLogger.Instance != null)
+            SessionLogger.Instance.StartLogging();
+
         if (UIManager.Instance != null) {
             if (UIManager.Instance.CalibrationPanel != null) UIManager.Instance.CalibrationPanel.SetActive(false);
             if (UIManager.Instance.HUDPanel != null) UIManager.Instance.HUDPanel.SetActive(true);
@@ -158,13 +171,11 @@ public class GymManager : MonoBehaviour
     IEnumerator CalibrationRoutine()
     {
         // If no calibration manager or no ZMQ data, skip calibration
-        if (calibrationManager == null || ZMQClient.Instance == null)
-        {
-            if (UIManager.Instance != null) UIManager.Instance.UpdateLiveFeedback("Skipping Calibration...", false, 0);
-            if (countdownText) countdownText.text = "Skipping Calibration...";
-            yield return new WaitForSeconds(1.5f);
-            yield break;
-        }
+        // Calibration skipped per request
+        if (UIManager.Instance != null) UIManager.Instance.UpdateLiveFeedback("Skipping Calibration...", false, 0);
+        if (countdownText) countdownText.text = "Skipping Calibration...";
+        yield return new WaitForSeconds(1.5f);
+        yield break;
 
         calibrationManager.ResetCalibration();
         
@@ -235,11 +246,22 @@ public class GymManager : MonoBehaviour
         if (!_sessionActive) return;
         _sessionActive = false;
 
+        if (ZMQClient.Instance != null)
+        {
+            ZMQClient.Instance.SendCommand("{\"command\": \"STOP\"}");
+        }
+
         if (trainer != null)
             trainer.isPlaying = false;
 
+        // SetState(Summary) fires OnSessionEnd → SessionLogger.StopLogging() → SaveSession()
+        // This MUST happen before we read LastSessionSummary
         if (GameManager.Instance != null)
             GameManager.Instance.SetState(GameState.Summary);
+            
+        // Explicitly stop logging for isolated scene testing
+        if (SessionLogger.Instance != null)
+            SessionLogger.Instance.StopLogging();
 
         // Deactivate HUD using cached reference
         if (_hudPanel != null) _hudPanel.SetActive(false);
@@ -254,27 +276,83 @@ public class GymManager : MonoBehaviour
         else
             Debug.LogError("[GymManager] SummaryPanel could not be found!");
 
-        // Populate summary screen
+        // --- Build the summary to display ---
+        SessionSummary summaryToShow = null;
+
+        // Prefer SessionLogger data (it has accurate frame-level accuracy & errors)
+        if (SessionLogger.Instance != null && SessionLogger.Instance.LastSessionSummary != null)
+        {
+            summaryToShow = SessionLogger.Instance.LastSessionSummary;
+            Debug.Log($"[GymManager] Using SessionLogger summary: reps={summaryToShow.total_reps}, accuracy={summaryToShow.accuracy:F1}%, frames={summaryToShow.total_frames}");
+        }
+        else
+        {
+            // Fallback: build summary from data GymManager already knows
+            string exercise = string.IsNullOrEmpty(overrideExercise)
+                ? PlayerPrefs.GetString("SelectedExercise", "scaption")
+                : overrideExercise;
+
+            // Try to read rep count from the last received ZMQ frame
+            int fallbackReps = 0;
+            float fallbackAccuracy = 100f;
+            if (ZMQClient.Instance != null && !string.IsNullOrEmpty(ZMQClient.Instance.LatestPoseJson))
+            {
+                try
+                {
+                    PoseData lastPose = UnityEngine.JsonUtility.FromJson<PoseData>(ZMQClient.Instance.LatestPoseJson);
+                    if (lastPose != null) fallbackReps = lastPose.rep_count;
+                }
+                catch { /* ignore parse failures */ }
+            }
+
+            float duration = GameManager.Instance != null ? GameManager.Instance.SessionDuration : 0f;
+
+            summaryToShow = new SessionSummary
+            {
+                patient_id   = PlayerPrefs.GetString("PatientID", "---"),
+                patient_name = PlayerPrefs.GetString("PatientName", "---"),
+                exercise     = exercise,
+                timestamp    = System.DateTime.Now.ToString("o"),
+                duration_sec = duration,
+                total_reps   = fallbackReps,
+                total_frames = 0,
+                accuracy     = fallbackAccuracy,
+                error_flags_detected = new System.Collections.Generic.List<string>()
+            };
+
+            Debug.LogWarning($"[GymManager] SessionLogger had no data — using fallback summary. " +
+                             $"patient={summaryToShow.patient_name}, exercise={exercise}, " +
+                             $"duration={duration:F1}s, reps={fallbackReps}");
+        }
+
         if (UIManager.Instance != null)
         {
-            if (SessionLogger.Instance != null && SessionLogger.Instance.LastSessionSummary != null)
-            {
-                UIManager.Instance.ShowSessionSummary(SessionLogger.Instance.LastSessionSummary);
-            }
-            else
-            {
-                SessionSummary dummy = new SessionSummary {
-                    patient_id = PlayerPrefs.GetString("PatientID", "isolate_test"),
-                    duration_sec = GameManager.Instance != null ? GameManager.Instance.SessionDuration : 0f,
-                    accuracy = 100f,
-                    error_flags_detected = new System.Collections.Generic.List<string>()
-                };
-                UIManager.Instance.ShowSessionSummary(dummy);
-            }
+            UIManager.Instance.ShowSessionSummary(summaryToShow);
         }
 
         if (countdownText) countdownText.text = "";
         Debug.Log("[GymManager] Session complete. Showing summary.");
+        
+        // Debug: Log session data stats
+        if (SessionLogger.Instance != null)
+        {
+            Debug.Log($"[GymManager] SessionLogger: LastSessionSummary={(SessionLogger.Instance.LastSessionSummary == null ? "NULL" : "valid")}, " +
+                      $"FramesLogged={SessionLogger.Instance.DebugFrameCount}, IsLogging={SessionLogger.Instance.DebugIsLogging}");
+        }
+        else
+        {
+            Debug.LogError("[GymManager] SessionLogger.Instance is NULL! Frame logging will not work.");
+        }
+        
+        // Debug: Check panel visibility
+        if (_summaryPanel != null)
+        {
+            Debug.Log($"[GymManager] SummaryPanel activeSelf: {_summaryPanel.activeSelf}, activeInHierarchy: {_summaryPanel.activeInHierarchy}");
+        }
+        if (UIManager.Instance != null && UIManager.Instance.SummaryPanel != null)
+        {
+            Debug.Log($"[GymManager] UIManager SummaryPanel activeSelf: {UIManager.Instance.SummaryPanel.activeSelf}");
+        }
     }
 
     /// <summary>

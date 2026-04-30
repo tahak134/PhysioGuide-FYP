@@ -24,6 +24,7 @@ public class MainMenuManager : MonoBehaviour
     [Header("Settings UI Elements")]
     public TMP_InputField scaptionDurationInput;
     public TMP_InputField shoulderFlexionDurationInput;
+    public TMP_InputField ipAddressInput;
 
     private string currentPatientId = "";
     private string currentPatientName = "";
@@ -183,6 +184,17 @@ public class MainMenuManager : MonoBehaviour
             PlayerPrefs.SetFloat("ExerciseDuration_shoulder_flexion", sfDur);
             Debug.Log($"[MainMenuManager] Saved ExerciseDuration_shoulder_flexion: {sfDur}");
         }
+        if (ipAddressInput != null && !string.IsNullOrEmpty(ipAddressInput.text))
+        {
+            string newIP = ipAddressInput.text.Trim();
+            PlayerPrefs.SetString("TargetIP", newIP);
+            
+            if (ZMQClient.Instance != null)
+            {
+                ZMQClient.Instance.ConnectToIP(newIP);
+            }
+            Debug.Log($"[MainMenuManager] Saved Target IP: {newIP}");
+        }
         PlayerPrefs.Save();
     }
 
@@ -198,6 +210,7 @@ public class MainMenuManager : MonoBehaviour
     {
         PlayerPrefs.SetString("SelectedExercise", exerciseName);
         PlayerPrefs.Save();
+
         SceneManager.LoadScene("GymScene");
     }
 
@@ -212,6 +225,99 @@ public class MainMenuManager : MonoBehaviour
     }
 
     private void LoadPatientHistory()
+    {
+        if (historyContentText == null) return;
+
+        if (string.IsNullOrEmpty(currentPatientId))
+        {
+            historyContentText.text = "No patient logged in.";
+            return;
+        }
+
+        // Show loading state
+        historyContentText.text = "Loading session history...";
+
+        // UI FIX: Dynamically ensure ContentSizeFitter is attached and set to PreferredSize
+        UnityEngine.UI.ContentSizeFitter csf = historyContentText.gameObject.GetComponent<UnityEngine.UI.ContentSizeFitter>();
+        if (csf == null)
+        {
+            csf = historyContentText.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();
+        }
+        csf.verticalFit = UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
+        
+        // Also ensure TextOverflow is Overflow not Truncate
+        historyContentText.overflowMode = TMPro.TextOverflowModes.Overflow;
+
+        // Try fetching from Firebase first
+        if (FirebaseManager.Instance != null)
+        {
+            FirebaseManager.Instance.FetchPatientSessions(currentPatientId, OnSessionsFetched);
+        }
+        else
+        {
+            // Fallback to local files if Firebase is not available
+            LoadLocalHistory();
+        }
+    }
+
+    private void OnSessionsFetched(System.Collections.Generic.List<SessionSummary> sessions)
+    {
+        if (historyContentText == null) return;
+
+        if (sessions == null || sessions.Count == 0)
+        {
+            // Fallback: try local files
+            LoadLocalHistory();
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        sb.AppendLine($"<b>{sessions.Count} Sessions Recorded</b>\n");
+
+        int count = Mathf.Min(sessions.Count, 15);
+        for (int i = 0; i < count; i++)
+        {
+            try
+            {
+                SessionSummary summary = sessions[i];
+                string exercise = summary.exercise.Replace("_", " ");
+                string date = "";
+                try
+                {
+                    System.DateTime dt = System.DateTime.Parse(summary.timestamp);
+                    date = dt.ToString("dd MMM yyyy, HH:mm");
+                }
+                catch { date = summary.timestamp; }
+
+                string accuracyColor = summary.accuracy >= 80f ? "green" : (summary.accuracy >= 50f ? "yellow" : "red");
+
+                sb.AppendLine($"<b>{i + 1}. {exercise}</b>  -  {date}");
+                sb.AppendLine($"   Duration: {summary.duration_sec:F0}s  |  Reps: {summary.total_reps}  |  Accuracy: <color={accuracyColor}>{summary.accuracy:F1}%</color>");
+                if (summary.error_flags_detected != null && summary.error_flags_detected.Count > 0)
+                {
+                    string errors = string.Join(", ", summary.error_flags_detected).Replace("_", " ");
+                    sb.AppendLine($"   <color=red>Issues: {errors}</color>");
+                }
+                sb.AppendLine();
+            }
+            catch
+            {
+                sb.AppendLine($"{i + 1}. (could not parse session)\n");
+            }
+        }
+
+        if (sessions.Count > count)
+        {
+            sb.AppendLine($"... and {sessions.Count - count} more sessions.");
+        }
+
+        historyContentText.text = sb.ToString();
+    }
+
+    /// <summary>
+    /// Fallback: load session history from local Summary_*.json files.
+    /// </summary>
+    private void LoadLocalHistory()
     {
         if (historyContentText == null) return;
 
@@ -279,4 +385,3 @@ public class MainMenuManager : MonoBehaviour
         historyContentText.text = sb.ToString();
     }
 }
-
